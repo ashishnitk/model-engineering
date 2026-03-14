@@ -135,9 +135,8 @@ Behavior:
 
 ## Workflow Diagram (ASCII)
 
-```text
 ![alt text](image-1.png)
-
+```text
 notebooks/*  -> exploration only
 src/*        -> reusable production logic
 reports/*    -> human-readable findings and decisions
