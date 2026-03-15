@@ -144,7 +144,7 @@ reports/*    -> human-readable findings and decisions
 
 ## Weekly Course Rhythm
 
-![alt text](image.png)
+![alt text](image-2.png)
 
 ## Reproducibility Checklist
 
