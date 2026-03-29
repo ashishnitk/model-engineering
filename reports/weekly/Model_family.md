@@ -131,6 +131,6 @@
 
 
 
-    ## Key principle
+## Key principle
 
     In model engineering, we do not ask "What is the best model?" We ask "Which model family is the right fit for the data, the problem, the cost, the latency, and the deployment constraints?"
