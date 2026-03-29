@@ -108,26 +108,26 @@
 
 
 
-    ## Comparison table
+## Comparison table
 
-    | Model family                                 | Typical examples                                                       | Best used for                                                             | Strengths                                           | Tradeoffs / cautions                                               |
-    | -------------------------------------------- | ---------------------------------------------------------------------- | ------------------------------------------------------------------------- | --------------------------------------------------- | ------------------------------------------------------------------ |
-    | **Linear models**                            | Linear Regression, Logistic Regression, Ridge, Lasso, Elastic Net      | Simple prediction problems, strong baselines, interpretable tabular tasks | Fast, easy to explain, easy to deploy               | May underfit complex patterns                                      |
-    | **Tree-based models**                        | Decision Tree, Random Forest                                           | Tabular classification/regression, mixed feature types                    | Strong performance, handles nonlinearity well       | Can become less interpretable as complexity grows                  |
-    | **Boosting models**                          | Gradient Boosting, XGBoost, LightGBM, CatBoost                         | High-performing tabular tasks                                             | Often excellent accuracy on structured data         | More tuning, more complexity, harder to explain than simple models |
-    | **SVMs**                                     | Linear SVM, Kernel SVM                                                 | Medium-sized classification tasks, margin-based separation                | Can work well on some clean datasets                | Harder to scale and explain in many real settings                  |
-    | **Nearest-neighbor / distance-based models** | k-NN                                                                   | Small datasets, similarity-based decisions                                | Simple intuition                                    | Can be slow at inference, sensitive to scaling                     |
-    | **Probabilistic models**                     | Naive Bayes, Gaussian models                                           | Text classification, simple probabilistic baselines                       | Fast, lightweight, good baseline tools              | Strong assumptions may limit performance                           |
-    | **Feature-reduced models**                   | Selected-feature models                                                | When you want simpler, more maintainable models                           | Better interpretability, lower memory/training cost | Risk of dropping useful signal                                     |
-    | **Dimensionality reduction models**          | PCA, Truncated SVD, ICA                                                | Compressing overlapping numeric features, preprocessing                   | Can reduce complexity and redundancy                | Reduced interpretability; not always worth it                      |
-    | **Clustering models**                        | K-Means, DBSCAN, Hierarchical Clustering, GMM                          | Segmentation, pattern discovery, unlabeled data                           | Useful for exploration and grouping                 | Harder to validate; clusters still need business meaning           |
-    | **Neural networks / deep learning**          | MLP, CNN, RNN/LSTM, Transformers                                       | Complex nonlinear tasks, images, text, sequences, some tabular cases      | Powerful and flexible                               | More compute, harder debugging, greater reproducibility burden     |
-    | **LLM systems**                              | Encoder models, decoder/generative models                              | Language understanding/generation tasks                                   | Strong for unstructured text tasks                  | Cost, latency, hallucinations, evaluation complexity               |
-    | **Prompted LLM apps**                        | Prompt-only systems                                                    | Fast LLM prototyping and structured language workflows                    | Low setup cost, quick iteration                     | Brittle prompts, output reliability issues                         |
-    | **Fine-tuned LLMs**                          | Instruction-tuned / task-tuned models                                  | Repeated domain-specific language tasks                                   | Better specialization than prompt-only              | More data and training effort                                      |
-    | **RAG systems**                              | Retrieval + generation pipelines                                       | Question answering over documents, grounded generation                    | Better grounding than pure prompting                | Retrieval quality becomes critical                                 |
-    | **Agent systems**                            | Tool-calling / multi-step agents                                       | Multi-step workflows with decisions and actions                           | Flexible orchestration                              | Easy to overcomplicate; can be fragile and costly                  |
-    | **Decision-policy layers on top of models**  | Thresholded classifiers, abstain/escalate policies, calibrated outputs | Business decision systems, risk-sensitive workflows                       | Connects model output to real product behavior      | Requires business-cost thinking, not just metrics                  |
+| Model Family | Typical Examples | Best Used For | Strengths | Tradeoffs / Cautions |
+|---|---|---|---|---|
+| **Linear models** | Linear Regression, Logistic Regression, Ridge, Lasso, Elastic Net | Simple prediction problems, strong baselines, interpretable tabular tasks | Fast, easy to explain, easy to deploy | May underfit complex patterns |
+| **Tree-based models** | Decision Tree, Random Forest | Tabular classification/regression, mixed feature types | Strong performance, handles nonlinearity well | Can become less interpretable as complexity grows |
+| **Boosting models** | Gradient Boosting, XGBoost, LightGBM, CatBoost | High-performing tabular tasks | Often excellent accuracy on structured data | More tuning, complexity, harder to explain |
+| **SVMs** | Linear SVM, Kernel SVM | Medium-sized classification tasks, margin-based separation | Can work well on clean datasets | Harder to scale and explain in many settings |
+| **Nearest-neighbor models** | k-NN | Small datasets, similarity-based decisions | Simple intuition | Can be slow at inference, sensitive to scaling |
+| **Probabilistic models** | Naive Bayes, Gaussian models | Text classification, simple probabilistic baselines | Fast, lightweight, good baseline tools | Strong assumptions may limit performance |
+| **Feature-reduced models** | Selected-feature models | Simpler, more maintainable models | Better interpretability, lower memory/training cost | Risk of dropping useful signal |
+| **Dimensionality reduction** | PCA, Truncated SVD, ICA | Compressing overlapping numeric features, preprocessing | Reduces complexity and redundancy | Reduced interpretability |
+| **Clustering models** | K-Means, DBSCAN, Hierarchical, GMM | Segmentation, pattern discovery, unlabeled data | Useful for exploration and grouping | Harder to validate; need business meaning |
+| **Neural networks** | MLP, CNN, RNN/LSTM, Transformers | Complex nonlinear tasks, images, text, sequences | Powerful and flexible | More compute, harder debugging, reproducibility burden |
+| **LLM systems** | Encoder/decoder models | Language understanding/generation tasks | Strong for unstructured text | Cost, latency, hallucinations, evaluation complexity |
+| **Prompted LLMs** | Prompt-only systems | Fast LLM prototyping, structured language workflows | Low setup cost, quick iteration | Brittle prompts, output reliability issues |
+| **Fine-tuned LLMs** | Instruction-tuned models | Domain-specific language tasks | Better specialization than prompt-only | More data and training effort required |
+| **RAG systems** | Retrieval + generation pipelines | Question answering, grounded generation | Better grounding than pure prompting | Retrieval quality becomes critical |
+| **Agent systems** | Tool-calling, multi-step agents | Multi-step workflows with decisions | Flexible orchestration | Easy to overcomplicate; fragile and costly |
+| **Decision layers** | Thresholded classifiers, calibrated outputs | Business decision systems, risk-sensitive workflows | Connects model output to product behavior | Requires business-cost thinking |
 
 
 
