@@ -1,6 +1,7 @@
 
-# Model engineering
+# Model Engineering Reference
 
+A comprehensive guide to machine learning model families, their use cases, strengths, and tradeoffs. This reference helps practitioners select the right model family based on data characteristics, problem requirements, computational constraints, and deployment needs.
 
 ## Overview
 
@@ -14,9 +15,7 @@
 - **Reinforcement learning** — learn by trial, feedback, and reward.
 - **Decision layers** — turn model scores into usable actions.
 
-
-
-## Model families reference
+## Model Families Reference
 
 <details>
 <summary><strong>1) Classical supervised ML</strong> — predict known outcomes from labeled data</summary>
@@ -104,11 +103,7 @@
 
 </details>
 
-
-
-
-
-## Comparison table
+## Comparison Table
 
 | Model Family | Typical Examples | Best Used For | Strengths | Tradeoffs / Cautions |
 |---|---|---|---|---|
@@ -118,19 +113,31 @@
 | **SVMs** | Linear SVM, Kernel SVM | Medium-sized classification tasks, margin-based separation | Can work well on clean datasets | Harder to scale and explain in many settings |
 | **Nearest-neighbor models** | k-NN | Small datasets, similarity-based decisions | Simple intuition | Can be slow at inference, sensitive to scaling |
 | **Probabilistic models** | Naive Bayes, Gaussian models | Text classification, simple probabilistic baselines | Fast, lightweight, good baseline tools | Strong assumptions may limit performance |
-| **Feature-reduced models** | Selected-feature models | Simpler, more maintainable models | Better interpretability, lower memory/training cost | Risk of dropping useful signal |
 | **Dimensionality reduction** | PCA, Truncated SVD, ICA | Compressing overlapping numeric features, preprocessing | Reduces complexity and redundancy | Reduced interpretability |
 | **Clustering models** | K-Means, DBSCAN, Hierarchical, GMM | Segmentation, pattern discovery, unlabeled data | Useful for exploration and grouping | Harder to validate; need business meaning |
 | **Neural networks** | MLP, CNN, RNN/LSTM, Transformers | Complex nonlinear tasks, images, text, sequences | Powerful and flexible | More compute, harder debugging, reproducibility burden |
-| **LLM systems** | Encoder/decoder models | Language understanding/generation tasks | Strong for unstructured text | Cost, latency, hallucinations, evaluation complexity |
-| **Prompted LLMs** | Prompt-only systems | Fast LLM prototyping, structured language workflows | Low setup cost, quick iteration | Brittle prompts, output reliability issues |
-| **Fine-tuned LLMs** | Instruction-tuned models | Domain-specific language tasks | Better specialization than prompt-only | More data and training effort required |
+| **LLM systems** | GPT, Claude, Llama, Gemini, Mistral | Language understanding/generation tasks | Strong for unstructured text | Cost, latency, hallucinations, evaluation complexity |
 | **RAG systems** | Retrieval + generation pipelines | Question answering, grounded generation | Better grounding than pure prompting | Retrieval quality becomes critical |
 | **Agent systems** | Tool-calling, multi-step agents | Multi-step workflows with decisions | Flexible orchestration | Easy to overcomplicate; fragile and costly |
 | **Decision layers** | Thresholded classifiers, calibrated outputs | Business decision systems, risk-sensitive workflows | Connects model output to product behavior | Requires business-cost thinking |
 
+## Key Principle
 
+In model engineering, we do not ask "What is the best model?" We ask "Which model family is the right fit for the data, the problem, the cost, the latency, and the deployment constraints?"
 
-## Key principle
+## Summary
 
-    In model engineering, we do not ask "What is the best model?" We ask "Which model family is the right fit for the data, the problem, the cost, the latency, and the deployment constraints?"
+This reference covers nine major model families:
+
+1. **Classical supervised ML** — Linear, tree, boosting, SVM, k-NN, probabilistic, time-series
+2. **Unsupervised learning** — Clustering, association rules, topic modeling
+3. **Dimensionality reduction** — PCA, UMAP, autoencoders
+4. **Anomaly detection** — Isolation Forest, One-Class SVM, LOF
+5. **Recommender systems** — Collaborative filtering, content-based, ranking
+6. **Deep learning** — Neural networks for vision, NLP, graphs, generative tasks
+7. **Foundation/LLM systems** — Pretrained models for text, multimodal, edge deployment
+8. **Reinforcement learning** — Bandits, Q-learning, policy gradients
+9. **Decision layers** — Thresholding, calibration, rules, cascades
+
+Use the comparison table to match model families against your data characteristics, problem requirements, computational constraints, and deployment needs.
+
