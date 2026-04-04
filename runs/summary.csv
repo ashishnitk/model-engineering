@@ -1,1 +1,3 @@
+##
 run_name,model,accuracy,f1,roc_auc,notes
+run_001,logistic_regression,0.9824561403508771,0.9861111111111112,0.9953703703703703,baseline run
