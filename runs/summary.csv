@@ -13,3 +13,5 @@ run_titanic_kmeans_unsupervised,kmeans,,,,unsupervised_clustering,,,,4.0,0.0,0.2
 run_titanic_dbscan_unsupervised,dbscan,,,,unsupervised_clustering,,,,5.0,0.585,0.3753011457308426,1.046513170727891,27.202459772825154
 run_titanic_dbscan_unsupervised,dbscan,,,,unsupervised_clustering,,,,4.0,0.325,0.1564969055513817,1.3674100519973469,14.458985596888692
 run_titanic_dbscan_unsupervised,dbscan,,,,unsupervised_clustering,,,,5.0,0.585,0.3753011457308426,1.046513170727891,27.202459772825154
+run_digits_cnn,cnn2d,0.9583333333333334,0.9580058458343612,,deep:digits:image,False,,,,,,,
+run_timeseries_rnn,rnn,0.78125,0.7199372974121898,,deep:timeseries:sequence,False,,,,,,,
