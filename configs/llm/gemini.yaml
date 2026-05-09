@@ -16,6 +16,7 @@ generation_params:
   temperature: 0.7  # Creativity (0=deterministic, 1=random)
   max_tokens: 4096  # Max response length (increase for thinking models)
   top_p: 0.95
+  # image  mat 50%, floor 20% couch10%, roof10%....
   top_k: 40
 
 # Paths for artifacts and prompts
