@@ -32,6 +32,24 @@ from src.models.gemini_client import GeminiClient
 from src.utils.common import ensure_dir, load_yaml
 
 
+def resolve_path(user_value: str, fallback_dir: str) -> Path:
+    """Resolve a user-supplied path, supporting shorthand filenames.
+
+    If the provided value does not exist as-is, this checks fallback_dir/value.
+    """
+    direct = Path(user_value)
+    if direct.exists():
+        return direct
+
+    fallback = Path(fallback_dir) / user_value
+    if fallback.exists():
+        return fallback
+
+    raise FileNotFoundError(
+        f"Could not find file '{user_value}'. Tried '{direct}' and '{fallback}'."
+    )
+
+
 def load_api_key_from_dotenv(env_name: str) -> str | None:
     """Load API key from project-level .env file when available."""
     dotenv_path = Path(__file__).resolve().parent / ".env"
@@ -89,8 +107,10 @@ Examples:
     args = parser.parse_args()
 
     # Load configurations
-    llm_cfg = load_yaml(args.config)
-    prompt_cfg = load_yaml(args.prompt_config)
+    llm_cfg_path = resolve_path(args.config, "configs/llm")
+    prompt_cfg_path = resolve_path(args.prompt_config, "configs/prompts")
+    llm_cfg = load_yaml(llm_cfg_path)
+    prompt_cfg = load_yaml(prompt_cfg_path)
 
     # Generate run name if not provided
     if args.run_name:
@@ -115,6 +135,9 @@ Examples:
     gen_params = llm_cfg.get("generation_params", {})
     if "generation_override" in prompt_cfg:
         gen_params.update(prompt_cfg["generation_override"])
+
+    tools = gen_params.get("tools")
+    tool_config = gen_params.get("tool_config")
 
     client = GeminiClient(
         api_key=api_key,
@@ -145,6 +168,8 @@ Examples:
         system_prompt=system_prompt,
         temperature=gen_params.get("temperature"),
         max_tokens=gen_params.get("max_tokens"),
+        tools=tools,
+        tool_config=tool_config,
     )
 
     # Create run directory
@@ -163,6 +188,7 @@ Examples:
         "prompt_tokens": response.prompt_tokens,
         "response_tokens": response.response_tokens,
         "total_tokens": response.total_tokens,
+        "tool_usage": response.tool_usage,
         "task": prompt_cfg.get("task_name"),
         "query": args.query,
     }
@@ -171,11 +197,13 @@ Examples:
     # Save parameters
     params_file = llm_cfg["artifacts"]["params_file"]
     params = {
-        "llm_config": args.config,
-        "prompt_config": args.prompt_config,
+        "llm_config": str(llm_cfg_path).replace("\\", "/"),
+        "prompt_config": str(prompt_cfg_path).replace("\\", "/"),
         "model_name": llm_cfg["model_name"],
         "temperature": gen_params.get("temperature", 0.7),
         "max_tokens": gen_params.get("max_tokens", 1024),
+        "tools_enabled": bool(tools),
+        "tool_config": tool_config,
     }
     (run_dir / params_file).write_text(json.dumps(params, indent=2), encoding="utf-8")
 
@@ -184,8 +212,8 @@ Examples:
         "run_name": run_name,
         "task_name": prompt_cfg.get("task_name"),
         "model": llm_cfg["model_name"],
-        "prompt_config": args.prompt_config,
-        "llm_config": args.config,
+        "prompt_config": str(prompt_cfg_path).replace("\\", "/"),
+        "llm_config": str(llm_cfg_path).replace("\\", "/"),
         "created_at": datetime.now(timezone.utc).isoformat(),
         "files": {
             "response": response_file,

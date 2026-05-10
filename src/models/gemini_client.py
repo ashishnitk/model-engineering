@@ -28,6 +28,7 @@ class GeminiResponse:
     latency_ms: float | None = None
     model: str | None = None
     timestamp: str | None = None
+    tool_usage: dict | None = None
 
     def to_dict(self) -> dict:
         """Convert response to dictionary for JSON serialization."""
@@ -39,6 +40,7 @@ class GeminiResponse:
             "latency_ms": self.latency_ms,
             "model": self.model,
             "timestamp": self.timestamp,
+            "tool_usage": self.tool_usage,
         }
 
 
@@ -101,12 +103,59 @@ class GeminiClient:
         """Return default safety settings for classroom use (unused in new SDK)."""
         return {}
 
+    @staticmethod
+    def _to_json_safe(value):
+        """Convert SDK objects into JSON-safe data structures."""
+        try:
+            return json.loads(json.dumps(value, default=str))
+        except Exception:
+            return str(value)
+
+    def _extract_tool_usage(self, response) -> dict:
+        """Extract tool-call and grounding evidence from a Gemini response."""
+        function_calls: list[dict] = []
+        execution_events: list[str] = []
+        grounding_metadata = None
+
+        candidates = getattr(response, "candidates", None) or []
+        for candidate in candidates:
+            candidate_grounding = getattr(candidate, "grounding_metadata", None)
+            if candidate_grounding and grounding_metadata is None:
+                grounding_metadata = self._to_json_safe(candidate_grounding)
+
+            content = getattr(candidate, "content", None)
+            parts = getattr(content, "parts", None) or []
+            for part in parts:
+                function_call = getattr(part, "function_call", None)
+                if function_call:
+                    function_calls.append(
+                        {
+                            "name": getattr(function_call, "name", None),
+                            "args": self._to_json_safe(getattr(function_call, "args", None)),
+                        }
+                    )
+
+                if getattr(part, "executable_code", None) is not None:
+                    execution_events.append("executable_code")
+                if getattr(part, "code_execution_result", None) is not None:
+                    execution_events.append("code_execution_result")
+
+        return {
+            "tool_calls_detected": bool(function_calls or execution_events or grounding_metadata),
+            "function_calls": function_calls,
+            "execution_events": execution_events,
+            "has_grounding_metadata": grounding_metadata is not None,
+            "grounding_metadata": grounding_metadata,
+        }
+
     def generate(
         self,
         prompt: str,
         system_prompt: str | None = None,
         temperature: float | None = None,
         max_tokens: int | None = None,
+        tools: list[dict] | None = None,
+        tool_config: dict | None = None,
     ) -> GeminiResponse:
         """Generate response from Gemini API.
         
@@ -115,6 +164,8 @@ class GeminiClient:
             system_prompt: Optional system context (prepended to prompt)
             temperature: Override default temperature
             max_tokens: Override default max_tokens
+            tools: Optional Gemini tool definitions
+            tool_config: Optional Gemini tool config
             
         Returns:
             GeminiResponse object with text and metadata
@@ -139,13 +190,19 @@ class GeminiClient:
         # Call API with timing
         start_time = time.time()
         try:
+            config_kwargs: dict = {
+                "temperature": temp,
+                "max_output_tokens": max_toks,
+            }
+            if tools:
+                config_kwargs["tools"] = tools
+            if tool_config:
+                config_kwargs["tool_config"] = tool_config
+
             response = self.client.models.generate_content(
                 model=self.model_name,
                 contents=contents,
-                config=types.GenerateContentConfig(
-                    temperature=temp,
-                    max_output_tokens=max_toks,
-                ),
+                config=types.GenerateContentConfig(**config_kwargs),
             )
             latency_ms = (time.time() - start_time) * 1000
 
@@ -162,6 +219,8 @@ class GeminiClient:
                 response_tokens = getattr(usage, "candidates_token_count", None)
                 total_tokens = getattr(usage, "total_token_count", None)
 
+            tool_usage = self._extract_tool_usage(response)
+
             return GeminiResponse(
                 text=response_text,
                 prompt_tokens=prompt_tokens,
@@ -170,6 +229,7 @@ class GeminiClient:
                 latency_ms=round(latency_ms, 2),
                 model=self.model_name,
                 timestamp=datetime.now(timezone.utc).isoformat(),
+                tool_usage=tool_usage,
             )
 
         except Exception as e:

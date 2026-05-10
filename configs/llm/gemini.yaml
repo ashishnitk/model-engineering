@@ -18,6 +18,13 @@ generation_params:
   top_p: 0.95
   # image  mat 50%, floor 20% couch10%, roof10%....
   top_k: 40
+  # Optional Gemini tool calls (uncomment as needed):
+  # tools:
+  #   - google_search: {}
+  #   - code_execution: {}
+  # tool_config:
+  #   function_calling_config:
+  #     mode: AUTO
 
 # Paths for artifacts and prompts
 paths:

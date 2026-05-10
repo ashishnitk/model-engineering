@@ -258,6 +258,64 @@ Writes under `runs/<run_name>/`:
 Also appends:
 - `runs/summary.csv`
 
+## Gemini Flash RAG Demo
+
+Use Gemini Flash with retrieval over local markdown reports.
+
+Prerequisites:
+- `GEMINI_API_KEY` set in your environment or `.env`
+- dependencies installed from `requirements.txt`
+
+Run:
+
+```bash
+python rag_demo.py --config configs/llm/gemini.yaml --prompt-config configs/prompts/rag_grounded_answer.yaml --query "How does this repo explain RAG?"
+```
+
+Optional retrieval controls:
+
+```bash
+python rag_demo.py --config configs/llm/gemini.yaml --prompt-config configs/prompts/rag_grounded_answer.yaml --query "What is model engineering for LLMs?" --docs-dir reports --top-k 5 --chunk-size 1000 --chunk-overlap 100
+```
+
+## Gemini Tool-Call Demos
+
+Use these ready-made configs to demo different Gemini tool-calling behaviors.
+
+Search-only demo:
+
+```bash
+python llm_demo.py --config gemini_search.yaml --prompt-config search_weather_brief.yaml --query "What is the weather in Bangalore right now?"
+```
+
+Code-execution-only demo:
+
+```bash
+python llm_demo.py --config gemini_code_execution.yaml --prompt-config code_execution_demo.yaml --query "Compute the CAGR from 120 to 185 over 6 years"
+```
+
+Combined tools demo (search + compute):
+
+```bash
+python llm_demo.py --config gemini_tools_all.yaml --prompt-config search_plus_compute.yaml --query "Find current Bangalore temperature in Celsius and convert it to Fahrenheit"
+```
+
+Note: llm_demo.py supports shorthand names (for example gemini_tools_all.yaml) and resolves from configs/llm and configs/prompts.
+
+New demo files:
+- `configs/llm/gemini_search.yaml`
+- `configs/llm/gemini_code_execution.yaml`
+- `configs/llm/gemini_tools_all.yaml`
+- `configs/prompts/search_weather_brief.yaml`
+- `configs/prompts/code_execution_demo.yaml`
+- `configs/prompts/search_plus_compute.yaml`
+
+Artifacts are saved under `runs/<run_name>/`:
+- `response.txt`
+- `metadata.json`
+- `params.json`
+- `bundle_info.json`
+
 ## LLM Learning Track
 
 This repo now includes an LLM explainer for classroom teaching:
@@ -286,7 +344,7 @@ Use Google's Gemini API for prompt engineering demonstrations. **Free tier avail
    ```
 3. Install dependencies:
    ```bash
-   pip install -r requirements.txt  # includes google-generativeai
+   pip install -r requirements.txt  # includes google-genai SDK
    ```
 
 **Usage Examples:**
