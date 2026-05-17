@@ -37,3 +37,7 @@ runs/**/metrics.json
 runs/**/evaluation_metrics.json
 runs/**/params.json
 runs/**/holdout.csv
+
+# Local demo knowledge base data
+demo_data/
+reports/demo_data/

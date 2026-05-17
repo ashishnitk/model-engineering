@@ -258,6 +258,64 @@ Writes under `runs/<run_name>/`:
 Also appends:
 - `runs/summary.csv`
 
+## Token Budget Demo Summary
+
+After running `llm_demo.py` or `rag_demo.py` with different `--budget-mode` values,
+use this script to compare token usage and savings:
+
+```bash
+python token_budget_report.py --task rag_grounded_answer
+```
+
+Optional filters:
+
+```bash
+python token_budget_report.py --task general_assistant --model gemini-2.5-flash
+```
+
+## Auto Tool Routing (LLM Demo)
+
+`llm_demo.py` can now auto-select tools and token budget from the user query.
+
+Default behavior:
+- enable tool routing automatically (`google_search`, `code_execution`, both, or none)
+- auto-pick budget mode (`low`, `balanced`, `detailed`) based on detected query intent
+- cap max tokens using the chosen budget profile for token optimization
+
+Example (automatic routing + budget):
+
+```bash
+python llm_demo.py --config configs/llm/gemini.yaml --prompt-config configs/prompts/general_assistant.yaml --query "What is the latest inflation rate and compute yearly impact for $1200 monthly spend?"
+```
+
+Manual overrides:
+
+```bash
+# Force fixed budget mode while keeping auto tool routing
+python llm_demo.py --config configs/llm/gemini.yaml --prompt-config configs/prompts/general_assistant.yaml --query "Explain random forests" --budget-mode low
+
+# Disable auto routing and use tools from config YAML instead
+python llm_demo.py --config configs/llm/gemini_tools_all.yaml --prompt-config configs/prompts/search_plus_compute.yaml --query "Find EUR/USD and compute 5% increase" --disable-auto-route --budget-mode balanced
+```
+
+## Auto Budget Routing (RAG Demo)
+
+`rag_demo.py` now supports query-based automatic budget routing for retrieval and output length.
+
+Default behavior:
+- `--budget-mode auto` (default) picks `low`, `balanced`, or `detailed` from query complexity
+- selected budget controls `top_k`, `chunk_size`, `chunk_overlap`, and max output tokens
+
+Examples:
+
+```bash
+# Auto-select retrieval budget from query intent
+python rag_demo.py --config configs/llm/gemini.yaml --prompt-config configs/prompts/rag_grounded_answer.yaml --query "Compare RAG design choices in this repo and explain trade-offs"
+
+# Disable auto routing and force fixed budget
+python rag_demo.py --config configs/llm/gemini.yaml --prompt-config configs/prompts/rag_grounded_answer.yaml --query "What is RAG?" --disable-auto-route --budget-mode low
+```
+
 ## Gemini Flash RAG Demo
 
 Use Gemini Flash with retrieval over local markdown reports.
