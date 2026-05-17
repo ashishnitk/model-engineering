@@ -22,6 +22,7 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import re
 import sys
 from datetime import datetime, timezone
 from pathlib import Path
@@ -33,6 +34,28 @@ from langchain_google_genai import ChatGoogleGenerativeAI
 from langchain_text_splitters import RecursiveCharacterTextSplitter
 
 from src.utils.common import ensure_dir, load_yaml
+
+
+BUDGET_PROFILES = {
+    "low": {
+        "top_k": 2,
+        "chunk_size": 700,
+        "chunk_overlap": 80,
+        "max_tokens": 500,
+    },
+    "balanced": {
+        "top_k": 3,
+        "chunk_size": 900,
+        "chunk_overlap": 100,
+        "max_tokens": 700,
+    },
+    "detailed": {
+        "top_k": 4,
+        "chunk_size": 1200,
+        "chunk_overlap": 150,
+        "max_tokens": 1200,
+    },
+}
 
 
 def load_api_key_from_dotenv(env_name: str) -> str | None:
@@ -95,15 +118,87 @@ def chunk_documents(documents: list[Document], chunk_size: int, chunk_overlap: i
     return splitter.split_documents(documents)
 
 
+def get_effective_rag_settings(
+    budget_mode: str,
+    cli_top_k: int | None,
+    cli_chunk_size: int | None,
+    cli_chunk_overlap: int | None,
+    configured_max_tokens: int | None,
+) -> dict[str, int | None]:
+    """Resolve runtime settings from budget mode and optional CLI overrides."""
+    defaults = BUDGET_PROFILES[budget_mode]
+    budget_cap = defaults["max_tokens"]
+    resolved_max_tokens = budget_cap
+    if configured_max_tokens is not None:
+        resolved_max_tokens = min(int(configured_max_tokens), budget_cap)
+
+    return {
+        "top_k": cli_top_k if cli_top_k is not None else defaults["top_k"],
+        "chunk_size": cli_chunk_size if cli_chunk_size is not None else defaults["chunk_size"],
+        "chunk_overlap": (
+            cli_chunk_overlap if cli_chunk_overlap is not None else defaults["chunk_overlap"]
+        ),
+        "max_tokens": resolved_max_tokens,
+    }
+
+
+def infer_rag_budget_mode(query: str) -> dict[str, str]:
+    """Infer retrieval budget mode from query complexity and intent."""
+    text = query.strip().lower()
+
+    broad_patterns = [
+        r"\bcompare|contrast|trade[- ]?off|pros and cons|summarize all|comprehensive\b",
+        r"\barchitecture|pipeline|end[- ]to[- ]end|deep dive|explain in detail\b",
+        r"\bmultiple|across documents|from all reports\b",
+    ]
+    precise_patterns = [
+        r"\bwhat is|define|when|where|who\b",
+        r"\bbrief|short|one line|quick\b",
+    ]
+
+    if any(re.search(pattern, text) for pattern in broad_patterns) or len(text) > 180:
+        return {
+            "budget_mode": "detailed",
+            "reason": "broad or multi-part query detected",
+        }
+
+    if any(re.search(pattern, text) for pattern in precise_patterns) and len(text) <= 120:
+        return {
+            "budget_mode": "low",
+            "reason": "narrow factual query detected",
+        }
+
+    return {
+        "budget_mode": "balanced",
+        "reason": "default complexity",
+    }
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description="Gemini Flash RAG demo with LangChain")
     parser.add_argument("--config", required=True, help="Path to configs/llm/*.yaml")
     parser.add_argument("--prompt-config", required=True, help="Path to configs/prompts/*.yaml")
     parser.add_argument("--query", required=True, help="User question for grounded answering")
     parser.add_argument("--docs-dir", default="reports", help="Knowledge base directory")
-    parser.add_argument("--top-k", type=int, default=4, help="Number of retrieved chunks")
-    parser.add_argument("--chunk-size", type=int, default=1200, help="Chunk size in characters")
-    parser.add_argument("--chunk-overlap", type=int, default=150, help="Chunk overlap in characters")
+    parser.add_argument(
+        "--budget-mode",
+        choices=["auto", "low", "balanced", "detailed"],
+        default="auto",
+        help="Token budget profile for retrieval + generation (auto by query)",
+    )
+    parser.add_argument(
+        "--disable-auto-route",
+        action="store_true",
+        help="Disable automatic query-based budget routing",
+    )
+    parser.add_argument("--top-k", type=int, default=None, help="Override retrieved chunk count")
+    parser.add_argument("--chunk-size", type=int, default=None, help="Override chunk size in characters")
+    parser.add_argument(
+        "--chunk-overlap",
+        type=int,
+        default=None,
+        help="Override chunk overlap in characters",
+    )
     parser.add_argument("--run-name", help="Custom run name")
     args = parser.parse_args()
 
@@ -139,14 +234,39 @@ def main() -> None:
         print(f"ERROR: no markdown files found in {docs_dir}")
         sys.exit(1)
 
+    gen_params = llm_cfg.get("generation_params", {})
+    if "generation_override" in prompt_cfg:
+        gen_params.update(prompt_cfg["generation_override"])
+
+    auto_route_enabled = not args.disable_auto_route
+    route_info = {
+        "budget_mode": "balanced",
+        "reason": "auto-route disabled",
+    }
+    if auto_route_enabled:
+        route_info = infer_rag_budget_mode(args.query)
+
+    if args.budget_mode == "auto":
+        resolved_budget_mode = route_info["budget_mode"]
+    else:
+        resolved_budget_mode = args.budget_mode
+
+    effective = get_effective_rag_settings(
+        budget_mode=resolved_budget_mode,
+        cli_top_k=args.top_k,
+        cli_chunk_size=args.chunk_size,
+        cli_chunk_overlap=args.chunk_overlap,
+        configured_max_tokens=gen_params.get("max_tokens"),
+    )
+
     chunks = chunk_documents(
         source_docs,
-        chunk_size=args.chunk_size,
-        chunk_overlap=args.chunk_overlap,
+        chunk_size=int(effective["chunk_size"]),
+        chunk_overlap=int(effective["chunk_overlap"]),
     )
 
     retriever = BM25Retriever.from_documents(chunks)
-    retriever.k = args.top_k
+    retriever.k = int(effective["top_k"])
     retrieved_docs = retriever.invoke(args.query)
 
     context_sections: list[str] = []
@@ -166,13 +286,11 @@ def main() -> None:
 
     context_text = "\n\n".join(context_sections)
 
-    gen_params = llm_cfg.get("generation_params", {})
-    if "generation_override" in prompt_cfg:
-        gen_params.update(prompt_cfg["generation_override"])
-
     system_prompt = prompt_cfg.get("system_prompt", "")
     user_prompt_template = prompt_cfg.get(
         "user_prompt_template",
+        # rag_guide.md
+        # How does this repo explain RAG?
         "Context:\n{context}\n\nQuestion:\n{question}",
     )
     user_prompt = user_prompt_template.format(context=context_text, question=args.query)
@@ -181,12 +299,22 @@ def main() -> None:
         model=llm_cfg.get("model_name", "gemini-2.5-flash"),
         google_api_key=api_key,
         temperature=gen_params.get("temperature", 0.2),
-        max_output_tokens=gen_params.get("max_tokens", 1200),
+        max_output_tokens=int(effective["max_tokens"]),
     )
 
     print(f"[{run_name}] Running RAG with Gemini...")
     print(f"  Model: {llm_cfg.get('model_name')}")
     print(f"  Docs dir: {docs_dir}")
+    print(f"  Budget mode: {resolved_budget_mode}")
+    print(f"  Auto route: {auto_route_enabled}")
+    print(f"  Routing reason: {route_info['reason']}")
+    print(
+        "  Effective settings: "
+        f"top_k={effective['top_k']}, "
+        f"chunk_size={effective['chunk_size']}, "
+        f"chunk_overlap={effective['chunk_overlap']}, "
+        f"max_tokens={effective['max_tokens']}"
+    )
     print(f"  Retrieved chunks: {len(retrieved_docs)}")
     print()
 
@@ -219,7 +347,13 @@ def main() -> None:
         "task": task_name,
         "query": args.query,
         "docs_dir": str(docs_dir).replace("\\", "/"),
-        "top_k": args.top_k,
+        "budget_mode": resolved_budget_mode,
+        "auto_route": auto_route_enabled,
+        "routing_reason": route_info["reason"],
+        "top_k": effective["top_k"],
+        "chunk_size": effective["chunk_size"],
+        "chunk_overlap": effective["chunk_overlap"],
+        "max_tokens": effective["max_tokens"],
         "retrieved_count": len(retrieved_docs),
     }
     (run_dir / metadata_file).write_text(json.dumps(metadata, indent=2), encoding="utf-8")
@@ -229,11 +363,14 @@ def main() -> None:
         "prompt_config": str(prompt_cfg_path).replace("\\", "/"),
         "model_name": llm_cfg.get("model_name"),
         "temperature": gen_params.get("temperature", 0.2),
-        "max_tokens": gen_params.get("max_tokens", 1200),
+        "budget_mode": resolved_budget_mode,
+        "auto_route": auto_route_enabled,
+        "routing_reason": route_info["reason"],
+        "max_tokens": effective["max_tokens"],
         "docs_dir": str(docs_dir).replace("\\", "/"),
-        "chunk_size": args.chunk_size,
-        "chunk_overlap": args.chunk_overlap,
-        "top_k": args.top_k,
+        "chunk_size": effective["chunk_size"],
+        "chunk_overlap": effective["chunk_overlap"],
+        "top_k": effective["top_k"],
     }
     (run_dir / params_file).write_text(json.dumps(params, indent=2), encoding="utf-8")
 

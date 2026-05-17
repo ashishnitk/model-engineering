@@ -22,6 +22,7 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import re
 import sys
 from datetime import datetime, timezone
 from pathlib import Path
@@ -30,6 +31,18 @@ import pandas as pd
 
 from src.models.gemini_client import GeminiClient
 from src.utils.common import ensure_dir, load_yaml
+
+
+BUDGET_MAX_TOKENS = {
+    "low": 350,
+    "balanced": 700,
+    "detailed": 1200,
+}
+
+TOOL_DEFINITIONS = {
+    "google_search": {"google_search": {}},
+    "code_execution": {"code_execution": {}},
+}
 
 
 def resolve_path(user_value: str, fallback_dir: str) -> Path:
@@ -64,6 +77,68 @@ def load_api_key_from_dotenv(env_name: str) -> str | None:
             value = stripped.split("=", 1)[1].strip().strip('"').strip("'")
             return value or None
     return None
+
+
+def get_effective_max_tokens(budget_mode: str, configured_max_tokens: int | None) -> int:
+    """Resolve max tokens with budget profile as an optimization cap."""
+    budget_cap = BUDGET_MAX_TOKENS[budget_mode]
+    if configured_max_tokens is None:
+        return budget_cap
+    return min(int(configured_max_tokens), budget_cap)
+
+
+def infer_tool_routing(query: str) -> dict[str, object]:
+    """Infer tool usage + budget mode from a user query using simple heuristics."""
+    text = query.strip().lower()
+
+    search_patterns = [
+        r"\b(today|latest|current|news|weather|price|stock|recent|update)\b",
+        r"\b(search|look up|find online|web)\b",
+        r"\bwho is|what happened|when did\b",
+    ]
+    code_patterns = [
+        r"\bcalculate|compute|sum|average|mean|median|std|variance\b",
+        r"\bpython|pandas|dataframe|numpy|code\b",
+        r"\bregression|correlation|simulate|equation\b",
+        r"[\d\s\+\-\*\/\(\)\.]{6,}",
+    ]
+
+    needs_search = any(re.search(pattern, text) for pattern in search_patterns)
+    needs_code = any(re.search(pattern, text) for pattern in code_patterns)
+
+    selected_tools: list[str] = []
+    reason_parts: list[str] = []
+
+    if needs_search:
+        selected_tools.append("google_search")
+        reason_parts.append("detected freshness/search intent")
+    if needs_code:
+        selected_tools.append("code_execution")
+        reason_parts.append("detected computation/code intent")
+
+    if needs_search and needs_code:
+        budget_mode = "detailed"
+    elif needs_search or needs_code:
+        budget_mode = "balanced"
+    else:
+        # Keep short general prompts cheap by default.
+        budget_mode = "low" if len(text) <= 180 else "balanced"
+
+    if not reason_parts:
+        reason_parts.append("no tool intent detected; using direct generation")
+
+    return {
+        "tools": selected_tools,
+        "budget_mode": budget_mode,
+        "reason": "; ".join(reason_parts),
+    }
+
+
+def build_tool_payload(tool_names: list[str]) -> list[dict] | None:
+    """Convert logical tool names to Gemini tool configuration payload."""
+    if not tool_names:
+        return None
+    return [TOOL_DEFINITIONS[name] for name in tool_names if name in TOOL_DEFINITIONS]
 
 
 def main() -> None:
@@ -104,6 +179,17 @@ Examples:
         "--run-name",
         help="Custom run name (auto-generated if not provided)",
     )
+    parser.add_argument(
+        "--budget-mode",
+        choices=["auto", "low", "balanced", "detailed"],
+        default="auto",
+        help="Token budget profile (auto picks based on query)",
+    )
+    parser.add_argument(
+        "--disable-auto-route",
+        action="store_true",
+        help="Disable automatic query-based tool and budget routing",
+    )
     args = parser.parse_args()
 
     # Load configurations
@@ -136,14 +222,38 @@ Examples:
     if "generation_override" in prompt_cfg:
         gen_params.update(prompt_cfg["generation_override"])
 
-    tools = gen_params.get("tools")
-    tool_config = gen_params.get("tool_config")
+    auto_route_enabled = not args.disable_auto_route
+    route_info: dict[str, object] = {
+        "tools": [],
+        "budget_mode": "balanced",
+        "reason": "auto-route disabled",
+    }
+
+    if auto_route_enabled:
+        route_info = infer_tool_routing(args.query)
+
+    if args.budget_mode == "auto":
+        resolved_budget_mode = str(route_info["budget_mode"])
+    else:
+        resolved_budget_mode = args.budget_mode
+
+    effective_max_tokens = get_effective_max_tokens(
+        budget_mode=resolved_budget_mode,
+        configured_max_tokens=gen_params.get("max_tokens"),
+    )
+
+    if auto_route_enabled:
+        tools = build_tool_payload(list(route_info["tools"]))
+        tool_config = None
+    else:
+        tools = gen_params.get("tools")
+        tool_config = gen_params.get("tool_config")
 
     client = GeminiClient(
         api_key=api_key,
         model_name=llm_cfg.get("model_name", "gemini-2.0-flash"),
         temperature=gen_params.get("temperature", 0.7),
-        max_tokens=gen_params.get("max_tokens", 1024),
+        max_tokens=effective_max_tokens,
     )
 
     # Build user prompt from template
@@ -159,7 +269,15 @@ Examples:
     print(f"[{run_name}] Calling Gemini API...")
     print(f"  Model: {llm_cfg['model_name']}")
     print(f"  Task: {prompt_cfg['task_name']}")
+    print(f"  Budget mode: {resolved_budget_mode}")
+    print(f"  Auto route: {auto_route_enabled}")
+    if auto_route_enabled:
+        print(f"  Routing reason: {route_info['reason']}")
+        print(f"  Routed tools: {route_info['tools']}")
+    else:
+        print(f"  Routed tools: {['config'] if tools else []}")
     print(f"  Temperature: {gen_params.get('temperature', 0.7)}")
+    print(f"  Max tokens: {effective_max_tokens}")
     print()
 
     # Call Gemini
@@ -167,7 +285,7 @@ Examples:
         prompt=user_prompt,
         system_prompt=system_prompt,
         temperature=gen_params.get("temperature"),
-        max_tokens=gen_params.get("max_tokens"),
+        max_tokens=effective_max_tokens,
         tools=tools,
         tool_config=tool_config,
     )
@@ -191,6 +309,10 @@ Examples:
         "tool_usage": response.tool_usage,
         "task": prompt_cfg.get("task_name"),
         "query": args.query,
+        "budget_mode": resolved_budget_mode,
+        "auto_route": auto_route_enabled,
+        "routing_reason": route_info["reason"],
+        "routed_tools": route_info["tools"],
     }
     (run_dir / metadata_file).write_text(json.dumps(metadata, indent=2), encoding="utf-8")
 
@@ -201,7 +323,11 @@ Examples:
         "prompt_config": str(prompt_cfg_path).replace("\\", "/"),
         "model_name": llm_cfg["model_name"],
         "temperature": gen_params.get("temperature", 0.7),
-        "max_tokens": gen_params.get("max_tokens", 1024),
+        "budget_mode": resolved_budget_mode,
+        "max_tokens": effective_max_tokens,
+        "auto_route": auto_route_enabled,
+        "routing_reason": route_info["reason"],
+        "routed_tools": route_info["tools"],
         "tools_enabled": bool(tools),
         "tool_config": tool_config,
     }
